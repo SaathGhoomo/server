@@ -6,13 +6,11 @@ const testSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      minlength: 3,
     },
-    email: {
+    message: {
       type: String,
       required: true,
       trim: true,
-      lowercase: true,
     },
   },
   {
@@ -23,4 +21,3 @@ const testSchema = new mongoose.Schema(
 const Test = mongoose.model('Test', testSchema);
 
 export default Test;
-

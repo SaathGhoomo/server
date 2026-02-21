@@ -124,4 +124,82 @@ const createBooking = async (req, res) => {
   }
 };
 
-export { createBooking };
+const getUserBookings = async (req, res) => {
+  try {
+    // Ensure req.user exists
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    // Fetch bookings for current user
+    const bookings = await Booking.find({ userId: req.user._id })
+      .populate({
+        path: 'partnerId',
+        select: 'bio hourlyRate city',
+        populate: {
+          path: 'userId',
+          select: 'name email'
+        }
+      })
+      .sort({ createdAt: -1 });
+
+    // Return response with count and data
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      data: bookings
+    });
+
+  } catch (error) {
+    console.error('Get user bookings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching bookings'
+    });
+  }
+};
+
+const getPartnerBookings = async (req, res) => {
+  try {
+    // Ensure req.user exists
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    // Find Partner document for current user
+    const partner = await Partner.findOne({ userId: req.user._id });
+    if (!partner) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not a partner'
+      });
+    }
+
+    // Fetch bookings for this partner
+    const bookings = await Booking.find({ partnerId: partner._id })
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 });
+
+    // Return response with count and data
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      data: bookings
+    });
+
+  } catch (error) {
+    console.error('Get partner bookings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching partner bookings'
+    });
+  }
+};
+
+export { createBooking, getUserBookings, getPartnerBookings };

@@ -1,9 +1,9 @@
-const winston = require('winston');
-const path = require('path');
+import winston from 'winston';
+import path from 'path';
+import fs from 'fs';
 
 // Create logs directory if it doesn't exist
-const fs = require('fs');
-const logsDir = path.join(__dirname, '../logs');
+const logsDir = path.join(import.meta.url.replace('file:///', ''), '../logs').replace(/\/utils\/.*/, '/logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
@@ -34,4 +34,4 @@ if (process.env.NODE_ENV !== 'production') {
   }));
 }
 
-module.exports = logger;
+export default logger;

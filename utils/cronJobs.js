@@ -1,6 +1,6 @@
-const cron = require('node-cron');
-const User = require('../models/User');
-const logger = require('./logger');
+import cron from 'node-cron';
+import User from '../models/User.js';
+import logger from './logger.js';
 
 // Job to check and expire premium subscriptions
 const expirePremiumSubscriptions = cron.schedule('0 0 * * *', async () => {
@@ -34,7 +34,7 @@ const cleanupActivityLogs = cron.schedule('0 2 * * 0', async () => {
   try {
     logger.info('Running activity log cleanup');
     
-    const ActivityLog = require('../models/ActivityLog');
+    const ActivityLog = (await import('../models/ActivityLog.js')).default;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
     
@@ -50,7 +50,7 @@ const cleanupActivityLogs = cron.schedule('0 2 * * 0', async () => {
   scheduled: false
 });
 
-module.exports = {
+export {
   expirePremiumSubscriptions,
   cleanupActivityLogs
 };

@@ -1,4 +1,4 @@
-const { body, validationResult } = require('express-validator');
+import { body, validationResult } from 'express-validator';
 
 // Validation rules
 const validationRules = {
@@ -89,4 +89,4 @@ const validate = (rules) => {
   };
 };
 
-module.exports = { validationRules, validate };
+export { validationRules, validate };

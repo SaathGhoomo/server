@@ -3,10 +3,17 @@ import crypto from 'crypto';
 import Booking from '../models/Booking.js';
 import { updateEarningsOnPayment } from './earningsController.js';
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+// Initialize Razorpay only if keys are available
+let razorpay = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET
+  });
+  console.log('Razorpay initialized successfully');
+} else {
+  console.log('Razorpay keys not found - payment features will be disabled');
+}
 
 export const createOrder = async (req, res) => {
   try {
@@ -151,6 +158,10 @@ export const calculateCommission = async (totalAmount, userId) => {
 
 export const processRefund = async (razorpayPaymentId, amount) => {
   try {
+    if (!razorpay) {
+      throw new Error('Razorpay not initialized');
+    }
+    
     const refund = await razorpay.payments.refund(razorpayPaymentId, {
       amount: amount * 100
     });
@@ -158,7 +169,7 @@ export const processRefund = async (razorpayPaymentId, amount) => {
   } catch (error) {
     console.error('Razorpay refund error:', error);
     throw error;
-  };
+  }
 };
 
 export const updateEarningsOnRefund = async (bookingId, partnerId) => {

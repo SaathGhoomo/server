@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import testRoutes from './routes/testRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import partnerRoutes from './routes/partnerRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
 import { protect } from './middleware/authMiddleware.js';
 import { authorizeRoles } from './middleware/roleMiddleware.js';
 
@@ -21,24 +24,11 @@ app.get('/', (req, res) => {
   res.send('API Running');
 });
 
-app.get('/api/protected', protect, (req, res) => {
-  res.json({
-    success: true,
-    user: req.user
-  });
-});
-
-app.get(
-  '/api/admin-only',
-  protect,
-  authorizeRoles('admin'),
-  (req, res) => {
-    res.json({ success: true, message: 'Admin access granted' });
-  }
-);
-
 app.use('/api/test', testRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/partners', partnerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 const startServer = async () => {
   await connectDB();

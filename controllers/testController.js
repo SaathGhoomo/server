@@ -1,4 +1,4 @@
-import Test from '../models/Test.js';
+import User from '../models/User.js';
 
 export const createTestData = async (req, res) => {
   try {
@@ -34,6 +34,7 @@ export const createTestData = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
     const trimmedName = name.trim();
     const trimmedMessage = message.trim();
 
@@ -56,6 +57,9 @@ export const createTestData = async (req, res) => {
       name: trimmedName,
       message: trimmedMessage,
     });
+=======
+    const testDoc = await User.create({ name, email });
+>>>>>>> 87c77ab (add user model and register and login feature)
 
     return res.status(200).json({
       success: true,

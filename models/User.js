@@ -45,6 +45,19 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date
     },
+    blockedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    ],
+    isPremium: {
+      type: Boolean,
+      default: false
+    },
+    premiumExpiry: {
+      type: Date
+    },
   },
   {
     timestamps: true,

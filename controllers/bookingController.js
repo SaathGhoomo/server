@@ -1,5 +1,7 @@
 import Booking from '../models/Booking.js';
 import Partner from '../models/Partner.js';
+import User from '../models/User.js';
+import { processRefund } from './paymentController.js';
 
 const createBooking = async (req, res) => {
   try {
@@ -72,6 +74,24 @@ const createBooking = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Cannot book yourself'
+      });
+    }
+
+    // Check if user blocked partner
+    const currentUser = await User.findById(req.user._id);
+    if (currentUser.blockedUsers.includes(partner.userId.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot book this partner - you have blocked them'
+      });
+    }
+
+    // Check if partner blocked user
+    const partnerUser = await User.findById(partner.userId);
+    if (partnerUser.blockedUsers.includes(req.user._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot book this partner - they have blocked you'
       });
     }
 
@@ -202,4 +222,169 @@ const getPartnerBookings = async (req, res) => {
   }
 };
 
-export { createBooking, getUserBookings, getPartnerBookings };
+const cancelBooking = async (req, res) => {
+  try {
+    // Extract bookingId from req.params.id
+    const bookingId = req.params.id;
+
+    // Find booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Ensure booking.userId === req.user._id
+    if (booking.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: You can only cancel your own bookings'
+      });
+    }
+
+    // If status === "cancelled" → 400
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking is already cancelled'
+      });
+    }
+
+    // If status === "completed" → 400
+    if (booking.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel a completed booking'
+      });
+    }
+
+    // If booking.date < today → 400
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const bookingDate = new Date(booking.date);
+    bookingDate.setHours(0, 0, 0, 0);
+
+    if (bookingDate < today) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel past bookings'
+      });
+    }
+
+    // If paymentStatus === "paid" → set paymentStatus = "refunded"
+    if (booking.paymentStatus === 'paid') {
+      try {
+        // Process Razorpay refund
+        if (booking.razorpayPaymentId) {
+          await processRefund(booking.razorpayPaymentId, booking.totalAmount);
+          console.log('Refund processed successfully for payment:', booking.razorpayPaymentId);
+        }
+        
+        // Financial integrity: Reverse commission on refund
+        booking.platformCommission = 0;
+        booking.partnerEarning = 0;
+        booking.paymentStatus = 'refunded';
+        
+        // Update partner earnings to reverse the amount
+        const { updateEarningsOnRefund } = await import('./paymentController.js');
+        await updateEarningsOnRefund(booking._id, booking.partnerId);
+        
+      } catch (refundError) {
+        console.error('Refund failed:', refundError);
+        // Still allow cancellation but log the refund error
+        return res.status(500).json({
+          success: false,
+          message: 'Booking cancelled but refund failed. Please contact support.',
+          error: refundError.message
+        });
+      }
+    }
+
+    // Set status = "cancelled"
+    booking.status = 'cancelled';
+
+    // Save booking
+    await booking.save();
+
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Booking cancelled successfully',
+      booking
+    });
+
+  } catch (error) {
+    console.error('Cancel booking error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while cancelling booking',
+      error: error.message
+    });
+  }
+};
+
+const completeBooking = async (req, res) => {
+  try {
+    // Extract bookingId
+    const bookingId = req.params.id;
+
+    // Find booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Find Partner by userId = req.user._id
+    const partner = await Partner.findOne({ userId: req.user._id });
+    if (!partner) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not a partner'
+      });
+    }
+
+    // Ensure booking.partnerId === partner._id
+    if (booking.partnerId.toString() !== partner._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: You can only complete your own bookings'
+      });
+    }
+
+    // If status !== "confirmed" → 400
+    if (booking.status !== 'confirmed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only complete confirmed bookings'
+      });
+    }
+
+    // Set status = "completed"
+    booking.status = 'completed';
+
+    // Save
+    await booking.save();
+
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Booking completed successfully',
+      booking
+    });
+
+  } catch (error) {
+    console.error('Complete booking error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while completing booking',
+      error: error.message
+    });
+  }
+};
+
+export { createBooking, getUserBookings, getPartnerBookings, cancelBooking, completeBooking };

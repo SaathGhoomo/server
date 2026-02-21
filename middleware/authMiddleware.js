@@ -28,7 +28,7 @@ const protect = async (req, res, next) => {
         message: 'Not authorized'
       });
     }
-    console.log(user);
+   
     // Attach user to req.user
     req.user = user;
     

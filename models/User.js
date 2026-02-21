@@ -30,6 +30,8 @@ const userSchema = new mongoose.Schema(
     },
     googleId: {
       type: String,
+      unique: true,
+      sparse: true
     },
     role: {
       type: String,
@@ -39,6 +41,9 @@ const userSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false,
+    },
+    lastLogin: {
+      type: Date
     },
   },
   {

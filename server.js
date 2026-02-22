@@ -5,7 +5,6 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
-import xss from 'xss-clean';
 import morgan from 'morgan';
 import connectDB from './config/db.js';
 import testRoutes from './routes/testRoutes.js';
@@ -28,6 +27,14 @@ import { expirePremiumSubscriptions, cleanupActivityLogs } from './utils/cronJob
 dotenv.config();
 
 const app = express();
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection', { reason });
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception', { err });
+});
 
 // Security middleware
 app.use(helmet({
@@ -62,19 +69,42 @@ const authLimiter = rateLimit({
 });
 
 // Data sanitization
-app.use(mongoSanitize());
-app.use(xss());
 
 // Compression
 app.use(compression());
 
 // CORS
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://yourdomain.com'] // Add your production domain
-    : ['http://localhost:8000', 'http://127.0.0.1:8000'],
-  credentials: true
-}));
+const devOrigins = new Set([
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:8000',
+  'http://127.0.0.1:8000',
+]);
+
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+
+    if (process.env.NODE_ENV === 'production') {
+      const allowed = ['https://yourdomain.com'];
+      return cb(null, allowed.includes(origin));
+    }
+
+    return cb(null, devOrigins.has(origin));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
@@ -87,6 +117,17 @@ if (process.env.NODE_ENV === 'development') {
 app.use('/api/payments/webhook', paymentRoutes);
 
 app.use(express.json());
+
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON body',
+    });
+  }
+
+  return next(err);
+});
 
 app.get('/', (req, res) => {
   res.send('API Running');
@@ -110,6 +151,13 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/earnings', earningsRoutes);
 app.use('/api/premium', premiumRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+  });
+});
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

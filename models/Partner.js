@@ -28,6 +28,11 @@ const partnerSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    experience: {
+      type: String,
+      required: false,
+      trim: true
+    },
     approvalStatus: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],

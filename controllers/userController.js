@@ -1,5 +1,37 @@
 import User from '../models/User.js';
 
+export const getMe = async (req, res) => {
+  try {
+    // Ensure req.user exists
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    // Return user data
+    res.status(200).json({
+      success: true,
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role,
+        isVerified: req.user.isVerified,
+        authProvider: req.user.authProvider,
+        createdAt: req.user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching profile'
+    });
+  }
+};
+
 export const blockUser = async (req, res) => {
   try {
     // Ensure req.user exists

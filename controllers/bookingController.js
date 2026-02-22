@@ -2,6 +2,7 @@ import Booking from '../models/Booking.js';
 import Partner from '../models/Partner.js';
 import User from '../models/User.js';
 import { processRefund } from './paymentController.js';
+import { notificationTriggers } from '../utils/notificationService.js';
 
 const createBooking = async (req, res) => {
   try {
@@ -13,8 +14,7 @@ const createBooking = async (req, res) => {
       });
     }
 
-    // Extract fields
-    const { partnerId, date, startTime, endTime } = req.body;
+    const { partnerId, date, startTime, endTime, message } = req.body;
 
     // Debug logging
     console.log('Booking request:', {
@@ -95,7 +95,6 @@ const createBooking = async (req, res) => {
       });
     }
 
-    // Calculate duration in hours
     const parseTime = (timeStr) => {
       const [hours, minutes] = timeStr.split(':').map(Number);
       return hours + minutes / 60;
@@ -105,7 +104,6 @@ const createBooking = async (req, res) => {
     const endHours = parseTime(endTime);
     const duration = endHours - startHours;
 
-    // Validate duration
     if (duration <= 0) {
       return res.status(400).json({
         success: false,
@@ -113,10 +111,8 @@ const createBooking = async (req, res) => {
       });
     }
 
-    // Calculate total amount
     const totalAmount = duration * partner.hourlyRate;
 
-    // Create Booking
     const booking = await Booking.create({
       userId: req.user._id,
       partnerId,
@@ -124,9 +120,17 @@ const createBooking = async (req, res) => {
       startTime,
       endTime,
       totalAmount,
+      duration,
+      message,
       status: 'pending',
       paymentStatus: 'unpaid'
     });
+
+    // Trigger notification to partner
+    // Note: We'll get io from the app instance through a middleware
+    if (req.app.get('io')) {
+      await notificationTriggers.bookingCreated(req.app.get('io'), booking);
+    }
 
     // Return response
     res.status(201).json({
@@ -154,7 +158,6 @@ const getUserBookings = async (req, res) => {
       });
     }
 
-    // Fetch bookings for current user
     const bookings = await Booking.find({ userId: req.user._id })
       .populate({
         path: 'partnerId',
@@ -166,11 +169,11 @@ const getUserBookings = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    // Return response with count and data
     res.status(200).json({
       success: true,
       count: bookings.length,
-      data: bookings
+      data: bookings,
+      bookings
     });
 
   } catch (error) {
@@ -201,16 +204,15 @@ const getPartnerBookings = async (req, res) => {
       });
     }
 
-    // Fetch bookings for this partner
     const bookings = await Booking.find({ partnerId: partner._id })
       .populate('userId', 'name email')
       .sort({ createdAt: -1 });
 
-    // Return response with count and data
     res.status(200).json({
       success: true,
       count: bookings.length,
-      data: bookings
+      data: bookings,
+      bookings
     });
 
   } catch (error) {
@@ -218,6 +220,84 @@ const getPartnerBookings = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while fetching partner bookings'
+    });
+  }
+};
+
+const updateBookingStatusByPartner = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const partner = await Partner.findOne({ userId: req.user._id });
+    if (!partner) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not a partner'
+      });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    if (booking.partnerId.toString() !== partner._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: You can only manage your own bookings'
+      });
+    }
+
+    if (booking.status === 'cancelled' || booking.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot update a completed or cancelled booking'
+      });
+    }
+
+    if (status === 'accepted') {
+      booking.status = 'confirmed';
+    } else if (status === 'rejected') {
+      booking.status = 'cancelled';
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status action'
+      });
+    }
+
+    await booking.save();
+
+    // Trigger notification to user
+    if (req.app.get('io')) {
+      if (status === 'accepted') {
+        await notificationTriggers.bookingAccepted(req.app.get('io'), booking);
+      } else if (status === 'rejected') {
+        await notificationTriggers.bookingRejected(req.app.get('io'), booking);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking status updated successfully',
+      booking
+    });
+  } catch (error) {
+    console.error('Update booking status by partner error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating booking status'
     });
   }
 };
@@ -387,4 +467,4 @@ const completeBooking = async (req, res) => {
   }
 };
 
-export { createBooking, getUserBookings, getPartnerBookings, cancelBooking, completeBooking };
+export { createBooking, getUserBookings, getPartnerBookings, updateBookingStatusByPartner, cancelBooking, completeBooking };

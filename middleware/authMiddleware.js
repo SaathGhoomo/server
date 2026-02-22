@@ -16,6 +16,14 @@ const protect = async (req, res, next) => {
     // Extract token from header
     const token = authHeader.split(' ')[1];
 
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET is not set on the server');
+      return res.status(503).json({
+        success: false,
+        message: 'Server authentication is not configured (JWT_SECRET missing)'
+      });
+    }
+
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 

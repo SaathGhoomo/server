@@ -1,5 +1,6 @@
 import Partner from '../models/Partner.js';
 import User from '../models/User.js';
+import { notificationTriggers } from '../utils/notificationService.js';
 
 const applyForPartner = async (req, res) => {
   try {
@@ -11,8 +12,7 @@ const applyForPartner = async (req, res) => {
       });
     }
 
-    // Extract fields
-    const { bio, hourlyRate, interests, city } = req.body;
+    const { bio, hourlyRate, interests, city, experience } = req.body;
 
     // Validate
     if (!bio || bio.length < 20) {
@@ -45,15 +45,20 @@ const applyForPartner = async (req, res) => {
       });
     }
 
-    // Create new Partner
     const partner = await Partner.create({
       userId: req.user._id,
       bio,
       hourlyRate,
       interests: interests || [],
       city,
+      experience,
       approvalStatus: 'pending'
     });
+
+    // Trigger notification to admin
+    if (req.app.get('io')) {
+      await notificationTriggers.partnerApplication(req.app.get('io'), partner);
+    }
 
     // Return 201 response
     res.status(201).json({
@@ -73,17 +78,16 @@ const applyForPartner = async (req, res) => {
 
 const getApprovedPartners = async (req, res) => {
   try {
-    // Fetch approved partners with populated user data
     const partners = await Partner.find({ approvalStatus: 'approved' })
       .populate('userId', 'name email')
-      .select('-documents') // Exclude documents field
+      .select('-documents')
       .sort({ createdAt: -1 });
 
-    // Return response with count and data
     res.status(200).json({
       success: true,
       count: partners.length,
-      data: partners
+      data: partners,
+      partners
     });
 
   } catch (error) {
@@ -95,4 +99,35 @@ const getApprovedPartners = async (req, res) => {
   }
 };
 
-export { applyForPartner, getApprovedPartners };
+const getMyApplication = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    const application = await Partner.findOne({ userId: req.user._id });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      application
+    });
+  } catch (error) {
+    console.error('Get my partner application error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching partner application'
+    });
+  }
+};
+
+export { applyForPartner, getApprovedPartners, getMyApplication };

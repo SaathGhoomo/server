@@ -1,6 +1,7 @@
 import Partner from '../models/Partner.js';
-import Report from '../models/Report.js';
 import User from '../models/User.js';
+import Report from '../models/Report.js';
+import { notificationTriggers } from '../utils/notificationService.js';
 import Booking from '../models/Booking.js';
 import ActivityLog from '../models/ActivityLog.js';
 import WithdrawalRequest from '../models/WithdrawalRequest.js';
@@ -8,16 +9,22 @@ import PartnerEarnings from '../models/PartnerEarnings.js';
 
 const getAllPartnerApplications = async (req, res) => {
   try {
-    // Fetch all Partner documents with populated user data
-    const applications = await Partner.find({})
+    const { status } = req.query;
+
+    const filter = {};
+    if (status) {
+      filter.approvalStatus = status;
+    }
+
+    const applications = await Partner.find(filter)
       .populate('userId', 'name email role')
       .sort({ createdAt: -1 });
 
-    // Return response with count and data
     res.status(200).json({
       success: true,
       count: applications.length,
-      data: applications
+      data: applications,
+      applications
     });
 
   } catch (error) {
@@ -31,19 +38,18 @@ const getAllPartnerApplications = async (req, res) => {
 
 const updatePartnerStatus = async (req, res) => {
   try {
-    // Extract partnerId from req.params.id
     const { id: partnerId } = req.params;
-    const { approvalStatus } = req.body;
+    const { approvalStatus, status } = req.body;
 
-    // Validate approvalStatus
-    if (!approvalStatus || !['approved', 'rejected'].includes(approvalStatus)) {
+    const newStatus = approvalStatus || status;
+
+    if (!newStatus || !['approved', 'rejected'].includes(newStatus)) {
       return res.status(400).json({
         success: false,
         message: 'Approval status must be either "approved" or "rejected"'
       });
     }
 
-    // Find Partner by ID
     const partner = await Partner.findById(partnerId);
     if (!partner) {
       return res.status(404).json({
@@ -52,7 +58,6 @@ const updatePartnerStatus = async (req, res) => {
       });
     }
 
-    // If approvalStatus already not "pending"
     if (partner.approvalStatus !== 'pending') {
       return res.status(400).json({
         success: false,
@@ -60,15 +65,23 @@ const updatePartnerStatus = async (req, res) => {
       });
     }
 
-    // Update approvalStatus
-    partner.approvalStatus = approvalStatus;
+    partner.approvalStatus = newStatus;
     await partner.save();
+
+    // Trigger notification to partner
+    if (req.app.get('io')) {
+      if (newStatus === 'approved') {
+        await notificationTriggers.partnerApproved(req.app.get('io'), partner);
+      } else if (newStatus === 'rejected') {
+        await notificationTriggers.partnerRejected(req.app.get('io'), partner);
+      }
+    }
 
     // Return response
     res.status(200).json({
       success: true,
       message: 'Application updated',
-      status: approvalStatus
+      status: newStatus
     });
 
   } catch (error) {

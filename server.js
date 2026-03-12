@@ -227,7 +227,7 @@ const startServer = async () => {
   await connectDB();
 
   // Start cron jobs only in non-serverless environments
-  const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+  let isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
   if (!isServerless) {
     expirePremiumSubscriptions.start();
     cleanupActivityLogs.start();
@@ -244,8 +244,8 @@ const startServer = async () => {
 };
 
 // Start server only in non-serverless environments
-const isServerlesss = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-if (!isServerlesss) {
+isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+if (!isServerless) {
   startServer();
 }
 

@@ -83,27 +83,34 @@ app.use(cors({
   credentials: true
 }));
 
-// Socket.io setup
-const io = new Server(server, {
-  cors: {
-    origin: process.env.NODE_ENV !== 'production' 
-      ? ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"]
-      : ["http://localhost:5173", "http://localhost:5174"],
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
+// Socket.io setup - only in non-serverless environments
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+let io = null;
 
-// Make io available to controllers
-app.set('io', io);
+if (!isServerless) {
+  io = new Server(server, {
+    cors: {
+      origin: process.env.NODE_ENV !== 'production' 
+        ? ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"]
+        : ["http://localhost:5173", "http://localhost:5174"],
+      methods: ["GET", "POST"],
+      credentials: true
+    }
+  });
 
-// Socket authentication middleware
-io.use(authenticateSocket);
+  // Make io available to controllers
+  app.set('io', io);
 
-// Socket connection handling
-io.on('connection', (socket) => {
-  handleConnection(socket, io);
-});
+  // Socket authentication middleware
+  io.use(authenticateSocket);
+
+  // Socket connection handling
+  io.on('connection', (socket) => {
+    handleConnection(socket, io);
+  });
+} else {
+  logger.info('Socket.IO disabled in serverless environment');
+}
 
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled Rejection', { reason });

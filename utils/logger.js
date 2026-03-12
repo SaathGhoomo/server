@@ -1,37 +1,77 @@
-import winston from 'winston';
-import path from 'path';
-import fs from 'fs';
+// Serverless-safe logger for Vercel deployment
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || !process.env.NODE_ENV === 'development';
 
-// Create logs directory if it doesn't exist
-const logsDir = path.join(import.meta.url.replace('file:///', ''), '../logs').replace(/\/utils\/.*/, '/logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
+const logger = {
+  info: (message, meta = {}) => {
+    const logData = {
+      level: 'info',
+      message,
+      timestamp: new Date().toISOString(),
+      service: 'saathghoomo-api',
+      ...meta
+    };
+    
+    if (isServerless) {
+      console.log(JSON.stringify(logData));
+    } else {
+      // For local development, you can still use winston if needed
+      console.log(`[INFO] ${message}`, meta);
+    }
+  },
 
-const logger = winston.createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  defaultMeta: { service: 'saathghoomo-api' },
-  transports: [
-    new winston.transports.File({ 
-      filename: path.join(logsDir, 'error.log'), 
-      level: 'error' 
-    }),
-    new winston.transports.File({ 
-      filename: path.join(logsDir, 'combined.log') 
-    })
-  ]
-});
+  error: (message, error = null) => {
+    const logData = {
+      level: 'error',
+      message,
+      timestamp: new Date().toISOString(),
+      service: 'saathghoomo-api',
+      ...(error && { 
+        stack: error.stack,
+        name: error.name,
+        message: error.message 
+      })
+    };
+    
+    if (isServerless) {
+      console.error(JSON.stringify(logData));
+    } else {
+      console.error(`[ERROR] ${message}`, error);
+    }
+  },
 
-// Add console transport for development
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
-}
+  warn: (message, meta = {}) => {
+    const logData = {
+      level: 'warn',
+      message,
+      timestamp: new Date().toISOString(),
+      service: 'saathghoomo-api',
+      ...meta
+    };
+    
+    if (isServerless) {
+      console.warn(JSON.stringify(logData));
+    } else {
+      console.warn(`[WARN] ${message}`, meta);
+    }
+  },
+
+  debug: (message, meta = {}) => {
+    if (process.env.NODE_ENV === 'production') return;
+    
+    const logData = {
+      level: 'debug',
+      message,
+      timestamp: new Date().toISOString(),
+      service: 'saathghoomo-api',
+      ...meta
+    };
+    
+    if (isServerless) {
+      console.debug(JSON.stringify(logData));
+    } else {
+      console.debug(`[DEBUG] ${message}`, meta);
+    }
+  }
+};
 
 export default logger;

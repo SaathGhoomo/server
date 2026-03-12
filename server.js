@@ -219,10 +219,15 @@ app.use(errorHandler);
 const startServer = async () => {
   await connectDB();
 
-  // Start cron jobs
-  expirePremiumSubscriptions.start();
-  cleanupActivityLogs.start();
-  logger.info('Cron jobs started');
+  // Start cron jobs only in non-serverless environments
+  const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+  if (!isServerless) {
+    expirePremiumSubscriptions.start();
+    cleanupActivityLogs.start();
+    logger.info('Cron jobs started');
+  } else {
+    logger.info('Skipping cron jobs in serverless environment');
+  }
 
   const PORT = process.env.PORT || 8000;
   server.listen(PORT, () => {
@@ -232,4 +237,7 @@ const startServer = async () => {
 };
 
 startServer();
+
+// Export for Vercel serverless deployment
+export default app;
 

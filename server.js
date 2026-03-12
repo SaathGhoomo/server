@@ -243,7 +243,11 @@ const startServer = async () => {
   });
 };
 
-startServer();
+// Start server only in non-serverless environments
+const isServerlesss = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+if (!isServerlesss) {
+  startServer();
+}
 
 // Export for Vercel serverless deployment
 export default app;

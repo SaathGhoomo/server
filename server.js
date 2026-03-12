@@ -77,7 +77,7 @@ app.use('/api/', limiter);
 // CORS configuration
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ["https://yourdomain.com"] 
+    ? ["https://saathghoomoo.vercel.app"] 
     : ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true
@@ -92,7 +92,7 @@ if (!isServerless) {
     cors: {
       origin: process.env.NODE_ENV !== 'production' 
         ? ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"]
-        : ["http://localhost:5173", "http://localhost:5174"],
+        : ["https://saathghoomoo.vercel.app"],
       methods: ["GET", "POST"],
       credentials: true
     }
